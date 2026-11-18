@@ -194,14 +194,30 @@ function tflMemo(path,params,ttl=10000){
   const p=tfl(path,params); memo.set(k,{t:Date.now(),p}); p.catch(()=>memo.delete(k)); return p;
 }
 async function fetchJourneys(from,to){
-  const url=new URL(API+'/Journey/JourneyResults/'+encodeURIComponent(from)+'/to/'+encodeURIComponent(to));
-  url.searchParams.set('mode',JOURNEY_MODES);
-  let r;
-  try{r=await fetch(url,{cache:'no-store'});}catch(e){throw new Error('Couldn’t reach TfL. Check your connection and try again.');}
-  if(r.status===300||r.status===404) throw new Error('TfL couldn’t match one of the stations. Remove this route and add it again, picking each station from the list.');
-  if(!r.ok) throw new Error('TfL returned an error ('+r.status+'). Try again in a moment.');
-  const d=await r.json();
-  return (d.journeys||[]).slice(0,4);
+  let f=from,t=to;
+  for(let attempt=0;attempt<2;attempt++){
+    const url=new URL(API+'/Journey/JourneyResults/'+encodeURIComponent(f)+'/to/'+encodeURIComponent(t));
+    url.searchParams.set('mode',JOURNEY_MODES);
+    let r;
+    try{r=await fetch(url,{cache:'no-store'});}catch(e){throw new Error('Couldn’t reach TfL. Check your connection and try again.');}
+    if(r.status===300){
+      let d=null; try{d=await r.json();}catch(e){}
+      // TfL wants us to choose between several matches: take the best one for each end.
+      const best=(dis,cur)=>{
+        const o=dis&&dis.disambiguationOptions;
+        if(!o||!o.length) return cur;
+        const top=o.slice().sort((a,b)=>(b.matchQuality||0)-(a.matchQuality||0))[0];
+        return top.parameterValue||cur;
+      };
+      if(d&&attempt===0){f=best(d.fromLocationDisambiguation,f);t=best(d.toLocationDisambiguation,t);continue;}
+      throw new Error('TfL couldn’t match one of the stations (300). Remove this route and add it again.');
+    }
+    if(r.status===404) throw new Error('TfL found no journey between these stations (404).');
+    if(!r.ok) throw new Error('TfL returned an error ('+r.status+'). Try again in a moment.');
+    const d=await r.json();
+    return (d.journeys||[]).slice(0,4);
+  }
+  throw new Error('TfL couldn’t match the stations. Remove this route and add it again.');
 }
 const routeCache=new Map();
 function getRoutes(lineId){
