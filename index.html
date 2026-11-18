@@ -16,13 +16,13 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
-/* Layout idea: one narrow column. Saved routes as big tap targets, journeys as cards,
-   and a dark departure board for the live trains. */
+/* Layout idea: one narrow column. The live board comes first, then every way to get there,
+   ranked by arrival time. Saved routes are big tap targets with the next train on them. */
 :root{
   --paper:#EBEFF5; --surface:#FFFFFF; --ink:#0F1728; --muted:#586277; --line:#D3DAE5;
   --accent:#0B3D91; --accent-ink:#FFFFFF;
-  --board:#070A10; --board-ink:#E9EDF4; --board-line:#1B2232; --amber:#FFB400; --board-dim:#8C7A45;
-  --good:#0A7D3E; --warn-bg:#FFEFD0; --warn-ink:#7A4300; --bad-bg:#FDE1E4; --bad-ink:#9B0D20;
+  --board:#070A10; --board-ink:#E9EDF4; --board-line:#1B2232; --board-muted:#9AA4B8; --amber:#FFB400; --board-dim:#8C7A45;
+  --good:#0A7D3E; --good-ink:#FFFFFF; --warn-bg:#FFEFD0; --warn-ink:#7A4300; --bad-bg:#FDE1E4; --bad-ink:#9B0D20;
   --display:'Barlow Condensed','Arial Narrow',system-ui,sans-serif;
   --body:'Barlow',system-ui,-apple-system,'Segoe UI',sans-serif;
   color-scheme:light;
@@ -32,9 +32,16 @@
     --paper:#0C1018; --surface:#161B26; --ink:#E8ECF3; --muted:#9AA4B8; --line:#262E3F;
     --accent:#7C9BFF; --accent-ink:#0A1020;
     --board:#04060A; --board-line:#171D2B;
-    --warn-bg:#3A2A0E; --warn-ink:#FFD28A; --bad-bg:#40141B; --bad-ink:#FFB3BD;
+    --good:#3DBE7A; --good-ink:#06210F; --warn-bg:#3A2A0E; --warn-ink:#FFD28A; --bad-bg:#40141B; --bad-ink:#FFB3BD;
     color-scheme:dark;
   }
+}
+:root[data-theme="dark"]{
+  --paper:#0C1018; --surface:#161B26; --ink:#E8ECF3; --muted:#9AA4B8; --line:#262E3F;
+  --accent:#7C9BFF; --accent-ink:#0A1020;
+  --board:#04060A; --board-line:#171D2B;
+  --good:#3DBE7A; --good-ink:#06210F; --warn-bg:#3A2A0E; --warn-ink:#FFD28A; --bad-bg:#40141B; --bad-ink:#FFB3BD;
+  color-scheme:dark;
 }
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.45 var(--body);-webkit-text-size-adjust:100%}
@@ -42,60 +49,84 @@ button{font:inherit;color:inherit;cursor:pointer}
 .app{max-width:600px;margin:0 auto;padding:calc(env(safe-area-inset-top) + 14px) 16px calc(env(safe-area-inset-bottom) + 40px)}
 .top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
 h1{font:700 34px/1 var(--display);letter-spacing:.02em;text-transform:uppercase;margin:0;text-wrap:balance}
-h1.small{font-size:28px;text-transform:none;letter-spacing:0}
+h1.small{font-size:28px;text-transform:none;letter-spacing:0;line-height:1.05}
 .eyebrow{font:600 13px/1 var(--display);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0 0 6px}
 .btn{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:9px 14px;font-weight:500;min-height:42px}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
 .btn.danger{color:var(--bad-ink);border-color:var(--bad-ink)}
 .btn.ghost{background:transparent}
-.btn:focus-visible,.route:focus-visible,.jhead:focus-visible,.res:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.btn:focus-visible,.route:focus-visible,.jhead:focus-visible,.res:focus-visible,.linkbtn:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .row-actions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
 .stack{display:flex;flex-direction:column;gap:12px}
 .route{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-left:6px solid var(--accent);border-radius:14px;padding:16px}
 .route .name{font:700 26px/1.1 var(--display)}
 .route .sub{color:var(--muted);font-size:14px;margin-top:4px}
-.route .go{font:600 28px/1 var(--display);color:var(--accent)}
+.glance{display:flex;flex-direction:column;align-items:flex-end;gap:3px;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.glance small{font-size:12px;color:var(--muted)}
+.glance b{font:700 26px/1 var(--display);color:var(--accent)}
+.glance b.none{font-size:17px;color:var(--bad-ink)}
 .empty{background:var(--surface);border:1px dashed var(--line);border-radius:14px;padding:20px}
 .empty p{margin:0 0 12px;color:var(--muted)}
 .meta{color:var(--muted);font-size:14px}
 .meta b{color:var(--good);font-weight:600}
 .note{color:var(--muted);font-size:14px;margin:10px 0}
+.banner{background:var(--bad-bg);color:var(--bad-ink);border-radius:14px;padding:14px 16px;margin:0 0 14px;border-left:6px solid var(--bad-ink)}
+.banner strong{display:block;font:700 22px/1.15 var(--display)}
+.banner p{margin:6px 0 0;font-size:15px}
+.banner .btn{margin-top:10px;color:var(--bad-ink);border-color:var(--bad-ink);background:transparent}
+.board{background:var(--board);color:var(--board-ink);border-radius:14px;padding:14px;font-family:var(--display)}
+.bhead{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font:600 16px/1.2 var(--body);color:var(--board-ink)}
+.bsub{font:400 14px/1.35 var(--body);color:var(--board-muted);margin-top:6px}
+.bstatus{font:400 13px/1.35 var(--body);margin-top:8px;color:var(--board-muted)}
+.bstatus .ok{color:#6FD39A}
+.bstatus .warn{color:#FFD28A}
+.bstatus .bad{color:#FF9AA8}
+.hero{display:flex;align-items:baseline;gap:10px;margin:14px 0 2px;flex-wrap:wrap}
+.hero .big{font:700 56px/1 var(--display);color:var(--amber);font-variant-numeric:tabular-nums}
+.hero .then{font:500 20px/1 var(--display);color:var(--board-dim)}
+.herosub{font:400 14px/1.3 var(--body);color:var(--board-muted);margin-bottom:6px}
+.warnline{font:500 14px/1.35 var(--body);background:#3A2A0E;color:#FFD28A;border-radius:8px;padding:8px 10px;margin:8px 0}
+.trow{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--board-line)}
+.trow .dest{flex:1;min-width:0;font:600 21px/1.15 var(--display);letter-spacing:.01em;text-transform:uppercase}
+.trow .dest small{display:block;font:400 13px/1.35 var(--body);text-transform:none;letter-spacing:0;color:var(--board-muted)}
+.trow .dest .arr{color:#D9C38A}
+.trow .right{display:flex;flex-direction:column;align-items:flex-end;gap:3px}
+.trow .mins{font:700 27px/1 var(--display);color:var(--amber);font-variant-numeric:tabular-nums;white-space:nowrap}
+.trow .clk{font:400 13px/1 var(--body);color:var(--board-muted);font-variant-numeric:tabular-nums}
+.trow .tag{font:500 12px/1 var(--body);color:#FFD28A;border:1px solid #6B5320;border-radius:5px;padding:3px 6px;white-space:nowrap}
+.trow.dim .dest,.trow.dim .mins{opacity:.45}
+.trow.first{box-shadow:inset 4px 0 0 var(--amber);padding-left:10px;margin-left:-14px;padding-right:14px;margin-right:-14px}
+.linkbtn{background:none;border:0;color:var(--amber);font:500 15px/1.2 var(--body);padding:12px 0 4px;text-align:left}
+.msg{font:400 15px/1.4 var(--body);color:#C3CBDA;padding:6px 0}
+.small-note{font:400 13px/1.35 var(--body);color:var(--board-muted);margin-top:10px}
+.err{background:var(--bad-bg);color:var(--bad-ink);border-radius:12px;padding:14px;margin:12px 0}
+.err p{margin:0 0 10px}
+.section-title{font:700 26px/1.1 var(--display);margin:28px 0 4px}
+.section-sub{color:var(--muted);font-size:14px;margin:0 0 12px}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.card.direct{border-left:6px solid var(--accent)}
 .jhead{display:block;width:100%;text-align:left;background:none;border:0;padding:14px}
-.jline1{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
-.jtimes{font:700 24px/1.1 var(--display);font-variant-numeric:tabular-nums}
-.jnext{font:600 18px/1.1 var(--display);color:var(--ink);white-space:nowrap}
-.jnext span{color:var(--muted);font-weight:500}
-.jline2{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:10px}
-.badge{display:inline-block;font:600 12px/1 var(--display);letter-spacing:.08em;text-transform:uppercase;padding:4px 7px;border-radius:5px;background:var(--accent);color:var(--accent-ink)}
+.cardtop{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.arrive{font:700 26px/1.1 var(--display);font-variant-numeric:tabular-nums}
+.arrive span{font:500 18px/1 var(--display);color:var(--muted);white-space:nowrap}
+.cmp{font:600 14px/1 var(--display);letter-spacing:.03em;padding:6px 8px;border-radius:6px;background:var(--paper);color:var(--ink);white-space:nowrap}
+.cmp.best{background:var(--good);color:var(--good-ink)}
+.cmp.none{background:var(--bad-bg);color:var(--bad-ink)}
+.kicker{display:inline-block;font:600 12px/1 var(--display);letter-spacing:.1em;text-transform:uppercase;color:var(--accent);margin-bottom:6px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:10px}
 .chip{display:inline-block;font:600 14px/1 var(--display);letter-spacing:.02em;padding:5px 8px;border-radius:6px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.22)}
 .walk{font-size:13px;color:var(--muted);padding:3px 7px;border:1px solid var(--line);border-radius:6px}
+.firsttrain{font-size:15px;color:var(--muted);margin-top:10px}
+.firsttrain b{color:var(--ink);font-weight:600}
+.firsttrain .none{color:var(--bad-ink);font-weight:600}
 .pill{display:inline-block;font-size:13px;font-weight:500;padding:3px 9px;border-radius:999px}
 .pill.warn{background:var(--warn-bg);color:var(--warn-ink)}
-.pill.bad{background:var(--bad-bg);color:var(--bad-ink)}
+.pill.bad,.pill.closed{background:var(--bad-bg);color:var(--bad-ink)}
 .jbody{padding:0 14px 14px;border-top:1px solid var(--line)}
-.legs{list-style:none;margin:12px 0;padding:0;display:flex;flex-direction:column;gap:8px}
+.legs{list-style:none;margin:12px 0 4px;padding:0;display:flex;flex-direction:column;gap:8px}
 .legs li{display:flex;gap:10px;align-items:flex-start;font-size:15px}
 .legs .dur{margin-left:auto;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
 .legs small{display:block;color:var(--muted)}
-.board{background:var(--board);color:var(--board-ink);border-radius:12px;padding:14px;font-family:var(--display)}
-.bhead{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font:600 15px/1.2 var(--body);color:var(--board-ink)}
-.bsub{font:400 13px/1.3 var(--body);color:#9AA4B8;margin-top:4px}
-.hero{display:flex;align-items:baseline;gap:10px;margin:12px 0 6px;flex-wrap:wrap}
-.hero .big{font:700 52px/1 var(--display);color:var(--amber);font-variant-numeric:tabular-nums}
-.hero .then{font:500 20px/1 var(--display);color:var(--board-dim)}
-.warnline{font:500 14px/1.35 var(--body);background:#3A2A0E;color:#FFD28A;border-radius:8px;padding:8px 10px;margin:8px 0}
-.trow{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--board-line)}
-.trow .dest{flex:1;min-width:0;font:600 20px/1.15 var(--display);letter-spacing:.01em;text-transform:uppercase}
-.trow .dest small{display:block;font:400 13px/1.3 var(--body);text-transform:none;letter-spacing:0;color:#9AA4B8}
-.trow .mins{font:700 26px/1 var(--display);color:var(--amber);font-variant-numeric:tabular-nums;white-space:nowrap}
-.trow .tag{font:500 12px/1 var(--body);color:#9AA4B8;border:1px solid #2B3448;border-radius:5px;padding:3px 6px;white-space:nowrap}
-.trow.dim .dest,.trow.dim .mins{opacity:.45}
-.trow.first{box-shadow:inset 4px 0 0 var(--amber);padding-left:10px;margin-left:-14px;padding-right:14px;margin-right:-14px}
-.linkbtn{background:none;border:0;color:var(--amber);font:500 14px/1.2 var(--body);padding:10px 0 2px;text-align:left}
-.msg{font:400 15px/1.4 var(--body);color:#C3CBDA;padding:6px 0}
-.err{background:var(--bad-bg);color:var(--bad-ink);border-radius:12px;padding:14px;margin:12px 0}
-.err p{margin:0 0 10px}
 .field{margin:0 0 18px}
 .field label{display:block;font-weight:600;margin-bottom:6px}
 input[type=search],input[type=text]{width:100%;font-size:16px;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)}
@@ -109,7 +140,7 @@ input[type=search],input[type=text]{width:100%;font-size:16px;padding:12px;borde
 .hint{color:var(--muted);font-size:14px;padding:8px 2px}
 .check{display:flex;gap:10px;align-items:center;margin:4px 0 18px}
 .check input{width:22px;height:22px}
-.confirm{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:20px}
+.confirm{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:24px}
 .foot{margin-top:28px;color:var(--muted);font-size:13px}
 @media (prefers-reduced-motion:no-preference){.jbody{animation:fade .15s ease-out}@keyframes fade{from{opacity:.4}to{opacity:1}}}
 </style>
@@ -118,59 +149,172 @@ input[type=search],input[type=text]{width:100%;font-size:16px;padding:12px;borde
 <div class="app" id="app"></div>
 <script>
 const API='https://api.tfl.gov.uk';
-const LIVE_MODES=new Set(['tube','dlr','overground','elizabeth-line','tram']);
 const JOURNEY_MODES='tube,dlr,overground,elizabeth-line,tram,national-rail,walking';
+const SEARCH_MODES='tube,dlr,overground,elizabeth-line,national-rail,tram';
 
 /* ---------- pure logic (tested separately) ---------- */
 // <logic>
+const LIVE_MODES=new Set(['tube','dlr','overground','elizabeth-line','tram']);
 function cleanName(n){
-  return String(n||'').replace(/ (Underground|DLR|Rail|Tram|Overground) (Station|Stop)$/,'').replace(/ (Station|Stop)$/,'').trim();
+  return String(n||'').replace(/\s+/g,' ').trim()
+    .replace(/ (Underground|DLR|Rail|Tram|Overground|Elizabeth line) (Station|Stop)$/i,'').trim();
 }
-// true: a train heading for `dest` on some branch calls at dep then arr. false: none does. null: can't tell.
-function routeServes(routes,dep,arr,dest){
-  const destKnown=!!dest&&routes.some(ids=>ids.includes(dest));
-  let found=false,pathExists=false;
+function normName(n){
+  return cleanName(n).toLowerCase().replace(/&/g,' and ').replace(/[^a-z0-9]+/g,' ').replace(/\s+/g,' ').trim();
+}
+const VIA_ALIASES={'cx':'charing cross','charing x':'charing cross','chx':'charing cross'};
+function viaRaw(text){const m=/\bvia\s+(.+?)\s*$/i.exec(String(text||''));return m?m[1].trim():'';}
+function parseVia(text){const r=viaRaw(text);if(!r)return null;const v=normName(r);return VIA_ALIASES[v]||v||null;}
+function viaDisplay(text){const r=viaRaw(text);if(!r)return '';const a=VIA_ALIASES[normName(r)];return a?a.replace(/\b[a-z]/g,c=>c.toUpperCase()):r;}
+// The station id on this line whose name matches the "via" text, or null if none or several match.
+function findViaId(via,names){
+  if(!via||!names) return null;
+  const exact=[],prefix=[];
+  Object.keys(names).forEach(id=>{const n=normName(names[id]);if(n===via)exact.push(id);else if(n.indexOf(via+' ')===0)prefix.push(id);});
+  if(exact.length===1) return exact[0];
+  if(!exact.length&&prefix.length===1) return prefix[0];
+  return null;
+}
+// Routes a train could be running on from dep to its destination. A destination is where the train
+// ends, so routes that finish there are preferred; routes passing through are a fallback (short workings).
+function candRoutes(routes,dep,dest){
+  const all=[],term=[];
   for(const ids of routes){
     const i=ids.indexOf(dep); if(i<0) continue;
-    const j=ids.indexOf(arr,i+1); if(j<0) continue;
-    pathExists=true;
-    if(destKnown&&ids.lastIndexOf(dest)>=j) found=true;
+    const k=ids.lastIndexOf(dest); if(k<=i) continue;
+    all.push(ids); if(k===ids.length-1) term.push(ids);
   }
-  if(!pathExists||!destKnown) return null;
-  return found;
+  return {all,term};
 }
-function classifyRows(preds,arrPreds,routes,dep,arr,legSec,nowMs){
-  const verifiable=routes.some(ids=>{const i=ids.indexOf(dep);return i>=0&&ids.indexOf(arr,i+1)>i;});
-  const arrByVeh=new Map();
-  (arrPreds||[]).forEach(p=>{
-    if(!p.vehicleId) return;
-    const a=arrByVeh.get(p.vehicleId)||[]; a.push(p.timeToStation); arrByVeh.set(p.vehicleId,a);
-  });
-  const haveArr=!!(arrPreds&&arrPreds.length);
-  const seen=new Set(); const rows=[];
-  preds.slice().sort((a,b)=>a.timeToStation-b.timeToStation).forEach(p=>{
-    const key=p.vehicleId+'|'+p.expectedArrival; if(seen.has(key)) return; seen.add(key);
-    let serves=verifiable?routeServes(routes,dep,arr,p.destinationNaptanId):null;
-    if(serves!==false&&haveArr&&p.vehicleId){
-      const t=p.timeToStation;
-      const later=(arrByVeh.get(p.vehicleId)||[]).some(x=>x>t&&x<t+5400);
-      if(later) serves=true;
-      else if(t+legSec<=1200) serves=false;   // should already be predicted at the next station, but isn't
-      else serves=null;                        // too far away to be predicted there yet
+function verdictOf(set,dep,arr,dest){
+  let pass=0;
+  for(const ids of set){const i=ids.indexOf(dep),k=ids.lastIndexOf(dest),j=ids.indexOf(arr,i+1);if(j>i&&j<=k)pass++;}
+  return pass===set.length?'yes':pass===0?'no':'maybe';
+}
+// For a train that says it runs via a station: on every route from dep to that station, is arr passed first?
+function viaSegment(routes,dep,arr,via){
+  let tot=0,pass=0;
+  for(const ids of routes){const i=ids.indexOf(dep);if(i<0)continue;const v=ids.indexOf(via,i+1);if(v<0)continue;tot++;const j=ids.indexOf(arr,i+1);if(j>i&&j<=v)pass++;}
+  return tot?(pass===tot?'yes':'maybe'):null;
+}
+// 'yes' | 'no' | 'maybe' | 'unknown', using the timetabled routes, the destination and any "via" text.
+function routeVerdict(routes,dep,arr,dest,viaId){
+  const known=!!dest&&routes.some(ids=>ids.indexOf(dest)>=0);
+  if(known){
+    const {all,term}=candRoutes(routes,dep,dest);
+    const base=term.length?term:all;
+    if(viaId){
+      const vb=base.filter(ids=>ids.indexOf(viaId)>=0);
+      if(vb.length) return {v:verdictOf(vb,dep,arr,dest),why:'via'};
+      const va=all.filter(ids=>ids.indexOf(viaId)>=0);
+      if(va.length) return {v:verdictOf(va,dep,arr,dest),why:'via'};
+      return {v:viaSegment(routes,dep,arr,viaId)==='yes'?'yes':'maybe',why:'via'};
     }
-    let at=Date.parse(p.expectedArrival); if(!isFinite(at)) at=nowMs+p.timeToStation*1000;
-    rows.push({at,dest:cleanName(p.destinationName||p.towards||''),plat:p.platformName||'',loc:p.currentLocation||'',serves,vid:p.vehicleId||''});
+    if(!base.length) return {v:'no',why:'route'};
+    return {v:verdictOf(base,dep,arr,dest),why:'route'};
+  }
+  if(viaId){const seg=viaSegment(routes,dep,arr,viaId);if(seg)return {v:seg==='yes'?'yes':'maybe',why:'via'};}
+  return {v:'unknown',why:'unknown'};
+}
+function findPair(routes,depIds,arrIds){
+  for(const dep of depIds) for(const arr of arrIds){
+    if(dep===arr) continue;
+    if(routes.some(ids=>{const i=ids.indexOf(dep);return i>=0&&ids.indexOf(arr,i+1)>i;})) return {dep,arr};
+  }
+  return null;
+}
+function validVid(v){v=String(v==null?'':v).trim();return /\d/.test(v)&&!/^0+$/.test(v);}
+function predAt(p,nowMs){const t=Date.parse(p.expectedArrival);return isFinite(t)?t:nowMs+(p.timeToStation||0)*1000;}
+function median(a){const s=a.slice().sort((x,y)=>x-y),n=s.length;return n?(n%2?s[(n-1)/2]:(s[n/2-1]+s[n/2])/2):null;}
+// Decide for each live train at dep whether it will call at arr.
+// serves: 'yes' (confirmed), 'no' (does not), 'maybe' (TfL data can't tell yet).
+function classifyRows(o){
+  const nowMs=o.nowMs||Date.now(), routes=o.routes||[], line=o.line||'';
+  const sameLine=p=>!line||!p.lineId||p.lineId===line;
+  const list=[],keys=new Set();
+  (o.preds||[]).filter(sameLine).map(p=>({p,at:predAt(p,nowMs)})).sort((a,b)=>a.at-b.at).forEach(x=>{
+    const vid=validVid(x.p.vehicleId)?String(x.p.vehicleId).trim():'';
+    const key=(vid||((x.p.platformName||'')+'/'+(x.p.destinationNaptanId||x.p.destinationName||x.p.towards||'')))+'|'+x.p.expectedArrival;
+    if(keys.has(key)) return; keys.add(key);
+    if(vid&&list.some(r=>r.vid===vid&&Math.abs(r.at-x.at)<90000)) return;
+    list.push({p:x.p,at:x.at,vid});
   });
-  return rows;
+  const vidCount=new Map(); list.forEach(r=>{if(r.vid)vidCount.set(r.vid,(vidCount.get(r.vid)||0)+1);});
+  const arrMap=new Map(); let haveArr=false;
+  if(o.useVehicles&&Array.isArray(o.arrPreds)) o.arrPreds.filter(sameLine).forEach(p=>{
+    if(!validVid(p.vehicleId)) return;
+    const v=String(p.vehicleId).trim(); haveArr=true;
+    if(!arrMap.has(v)) arrMap.set(v,[]);
+    arrMap.get(v).push(predAt(p,nowMs));
+  });
+  const rows=list.map(({p,at,vid})=>{
+    const dest=p.destinationNaptanId||'';
+    const viaId=findViaId(parseVia(p.towards)||parseVia(p.destinationName),o.names);
+    let {v,why}=routeVerdict(routes,o.dep,o.arr,dest,viaId);
+    const usable=!!vid&&vidCount.get(vid)===1&&haveArr;
+    let seenAt=null;
+    if(usable){const xs=(arrMap.get(vid)||[]).filter(t=>t-at>=20000&&t-at<=2700000).sort((a,b)=>a-b);if(xs.length)seenAt=xs[0];}
+    return {at,vid,usable,seenAt,v,why,line:p.lineId||line,
+      dest:cleanName(p.destinationName)||String(p.towards||'').replace(/\s+via\s+.+$/i,'').trim(),
+      via:viaDisplay(p.towards)||viaDisplay(p.destinationName),
+      plat:p.platformName||'',loc:p.currentLocation||''};
+  });
+  const rides=f=>rows.filter(f).map(r=>r.seenAt-r.at);
+  let ride=median(rides(r=>r.seenAt&&r.v==='yes'));
+  if(ride==null) ride=median(rides(r=>r.seenAt&&r.v!=='no'));
+  let rideSrc=ride!=null?'live':null;
+  if(ride==null&&o.rideHintSec>0){ride=o.rideHintSec*1000;rideSrc='timetable';}
+  let horizon=0;
+  rows.forEach(r=>{
+    r.serves=r.v==='yes'?'yes':r.v==='no'?'no':'maybe';
+    if(r.seenAt){
+      const d=r.seenAt-r.at;
+      const tight=ride!=null&&d<=ride*1.6+300000&&d>=ride*0.4;
+      const ok=r.v==='yes'?(ride==null||d<=ride*2.5+600000):(tight||(ride==null&&r.v!=='no'));
+      if(ok){r.serves='yes';r.why='seen';r.arrAt=r.seenAt;r.arrExact=true;horizon=Math.max(horizon,r.seenAt);}
+    }
+  });
+  rows.forEach(r=>{
+    // TfL already predicts a later train at arr but not this one, although this one would get there first.
+    if(r.serves==='maybe'&&r.usable&&ride!=null&&horizon&&r.at+ride+120000<horizon){r.serves='no';r.why='notseen';}
+    if(r.serves==='yes'&&r.arrAt==null&&ride!=null){r.arrAt=r.at+ride;r.arrExact=false;}
+  });
+  return {rows,ride,rideSrc};
 }
-function secsUntil(r,nowMs){return (r.at-nowMs)/1000;}
-function tooSoon(r,walkSec,nowMs){return secsUntil(r,nowMs)<walkSec-30;}
-function pickNext(rows,walkSec,nowMs){
-  const ok=rows.filter(r=>r.serves!==false&&!tooSoon(r,walkSec,nowMs));
-  return ok;
-}
+function firstYes(rows,nowMs,minAt){const lo=Math.max(nowMs-30000,(minAt||0)-30000);return (rows||[]).find(r=>r.serves==='yes'&&r.at>=lo)||null;}
 function minsLabel(secs){return secs<60?'Due':Math.floor(secs/60)+' min';}
-function clock(ms){return new Date(ms).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/London'});}
+function londonOffsetMs(ms){
+  const f=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/London',hourCycle:'h23',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const p={};f.formatToParts(new Date(ms)).forEach(x=>{p[x.type]=x.value;});
+  return Date.UTC(+p.year,+p.month-1,+p.day,(+p.hour)%24,+p.minute,+p.second)-Math.floor(ms/1000)*1000;
+}
+function londonLocalToMs(s){
+  const naive=Date.parse(String(s||'').slice(0,19)+'Z'); if(!isFinite(naive)) return NaN;
+  return naive-londonOffsetMs(naive-londonOffsetMs(naive));
+}
+function plannerDiff(a,b){return Date.parse(String(a||'').slice(0,19)+'Z')-Date.parse(String(b||'').slice(0,19)+'Z');}
+function isWalk(l){return !l||!l.mode||l.mode.id==='walking';}
+function legLine(l){const o=l&&l.routeOptions&&l.routeOptions[0];return (o&&o.lineIdentifier&&o.lineIdentifier.id)||'';}
+function journeySig(j){
+  const s=(j.legs||[]).filter(l=>!isWalk(l)).map(l=>(legLine(l)||l.mode.id)+':'+((l.departurePoint&&l.departurePoint.naptanId)||'')+'>'+((l.arrivalPoint&&l.arrivalPoint.naptanId)||'')).join('|');
+  return s||'walk';
+}
+function byEst(a,b){const x=a.est==null,y=b.est==null;if(x!==y)return x?1:-1;return x?0:a.est-b.est;}
+const CLOSED_SEV=new Set([1,2,3,4,5,11,16,20]),BAD_SEV=new Set([6]),WARN_SEV=new Set([0,7,8,9,14,15,17]);
+function statusLevel(n){return CLOSED_SEV.has(n)?'closed':BAD_SEV.has(n)?'bad':WARN_SEV.has(n)?'warn':'ok';}
+function currentStatuses(ls,nowMs){
+  return (ls||[]).filter(s=>{const vp=s.validityPeriods||[];if(!vp.length)return true;
+    return vp.some(v=>v.isNow||(Date.parse(v.fromDate)<=nowMs&&nowMs<=Date.parse(v.toDate)));});
+}
+function pickDisamb(dis,stName,cur){
+  const o=dis&&dis.disambiguationOptions;
+  if(!o||!o.length) return cur;
+  const want=normName(stName);
+  const c=o.filter(x=>normName((x.place&&x.place.commonName)||'')===want);
+  if(!c.length) return null;
+  const stop=c.find(x=>x.place&&/stop/i.test(x.place.placeType||''));
+  return (stop||c[0]).parameterValue||null;
+}
 // </logic>
 
 /* ---------- storage ---------- */
@@ -179,257 +323,520 @@ function loadStore(){try{const s=JSON.parse(localStorage.getItem(LS_KEY));if(s&&
 function saveStore(){try{localStorage.setItem(LS_KEY,JSON.stringify(store));}catch(e){}}
 let store=loadStore();
 
-/* ---------- API ---------- */
+/* ---------- TfL ---------- */
+class TflError extends Error{constructor(status,message){super(message);this.status=status;}}
+function errText(e){return (e&&e.message)||'Something went wrong.';}
 async function tfl(path,params){
   const url=new URL(API+path);
   Object.entries(params||{}).forEach(([k,v])=>url.searchParams.set(k,v));
-  const r=await fetch(url,{cache:'no-store'});
-  if(!r.ok) throw new Error('TfL '+r.status);
+  let r;
+  try{r=await fetch(url.toString(),{cache:'no-store'});}catch(e){throw new TflError(0,'Couldn’t reach TfL. Check your connection.');}
+  if(r.status===429) throw new TflError(429,'TfL is limiting requests (429). Wait a minute, then tap Refresh.');
+  if(!r.ok) throw new TflError(r.status,'TfL returned an error ('+r.status+').');
   return r.json();
 }
 const memo=new Map();
-function tflMemo(path,params,ttl=10000){
-  const k=path+JSON.stringify(params||{}); const h=memo.get(k);
+function tflMemo(path,ttl){
+  ttl=ttl||20000;
+  const h=memo.get(path);
   if(h&&Date.now()-h.t<ttl) return h.p;
-  const p=tfl(path,params); memo.set(k,{t:Date.now(),p}); p.catch(()=>memo.delete(k)); return p;
+  const p=tfl(path); memo.set(path,{t:Date.now(),p}); p.catch(()=>memo.delete(path));
+  return p;
 }
-async function fetchJourneys(from,to){
-  let f=from,t=to;
-  for(let attempt=0;attempt<2;attempt++){
-    const url=new URL(API+'/Journey/JourneyResults/'+encodeURIComponent(f)+'/to/'+encodeURIComponent(t));
-    url.searchParams.set('mode',JOURNEY_MODES);
-    let r;
-    try{r=await fetch(url,{cache:'no-store'});}catch(e){throw new Error('Couldn’t reach TfL. Check your connection and try again.');}
-    if(r.status===300){
-      let d=null; try{d=await r.json();}catch(e){}
-      // TfL wants us to choose between several matches: take the best one for each end.
-      const best=(dis,cur)=>{
-        const o=dis&&dis.disambiguationOptions;
-        if(!o||!o.length) return cur;
-        const top=o.slice().sort((a,b)=>(b.matchQuality||0)-(a.matchQuality||0))[0];
-        return top.parameterValue||cur;
-      };
-      if(d&&attempt===0){f=best(d.fromLocationDisambiguation,f);t=best(d.toLocationDisambiguation,t);continue;}
-      throw new Error('TfL couldn’t match one of the stations (300). Remove this route and add it again.');
+function nightWindow(ms){
+  const f=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/London',weekday:'short',hour:'2-digit',hourCycle:'h23'});
+  const p={};f.formatToParts(new Date(ms)).forEach(x=>{p[x.type]=x.value;});
+  return (p.weekday==='Sat'||p.weekday==='Sun')&&(+p.hour)%24<6;
+}
+async function fetchSeqType(line,type){
+  const key='tubetimes.seq.'+line+'.'+type;
+  try{const c=JSON.parse(localStorage.getItem(key));if(c&&Date.now()-c.t<7*864e5&&Array.isArray(c.routes)&&(c.routes.length||type!=='Regular'))return c;}catch(e){}
+  let lastErr=null;
+  const res=await Promise.all(['inbound','outbound'].map(dir=>
+    tfl('/Line/'+encodeURIComponent(line)+'/Route/Sequence/'+dir,{serviceTypes:type,excludeCrowding:'true'}).catch(e=>{lastErr=e;return null;})));
+  if(!res[0]&&!res[1]&&lastErr) throw lastErr;
+  const routes=[],names={};let lineName='';
+  res.forEach(d=>{
+    if(!d) return;
+    lineName=d.lineName||lineName;
+    (d.orderedLineRoutes||[]).forEach(r=>{if(Array.isArray(r.naptanIds)&&r.naptanIds.length>1)routes.push(r.naptanIds);});
+    (d.stations||[]).forEach(s=>{if(s.id)names[s.id]=s.name;});
+    (d.stopPointSequences||[]).forEach(q=>(q.stopPoint||[]).forEach(s=>{if(s.id&&!names[s.id])names[s.id]=s.name;}));
+  });
+  if(type==='Regular'&&!routes.length) throw new TflError(0,'TfL sent no route data for the '+lineNameOf(line)+'.');
+  const c={t:Date.now(),routes,names,lineName};
+  try{localStorage.setItem(key,JSON.stringify(c));}catch(e){}
+  return c;
+}
+const seqMem=new Map();
+function getSeqs(line){
+  const night=nightWindow(Date.now()), k=line+(night?'+N':'');
+  if(!seqMem.has(k)){
+    const p=(async()=>{
+      const r=await fetchSeqType(line,'Regular');
+      if(!night) return r;
+      const n=await fetchSeqType(line,'Night').catch(()=>null);
+      if(!n||!n.routes.length) return r;
+      return {routes:r.routes.concat(n.routes),names:Object.assign({},n.names,r.names),lineName:r.lineName};
+    })();
+    seqMem.set(k,p); p.catch(()=>seqMem.delete(k));
+  }
+  return seqMem.get(k);
+}
+function isStationId(id){return /^9[14]0G/.test(String(id||''));}
+async function resolveStation(st){
+  if(st.v===2&&Array.isArray(st.ids)&&st.ids.length&&Date.now()-(st.at||0)<7*864e5) return st;
+  let sp;
+  try{sp=await tfl('/StopPoint/'+encodeURIComponent(st.id));}
+  catch(e){
+    const r=await tfl('/StopPoint/Search',{query:cleanName(st.name),modes:SEARCH_MODES,maxResults:10}).catch(()=>null);
+    const ms=(r&&r.matches)||[];
+    const m=ms.find(x=>normName(x.name)===normName(st.name));
+    if(!m) throw new TflError(e.status,'Couldn’t load details for '+cleanName(st.name)+' ('+(e.status||'no connection')+'). Tap Refresh, or edit the route.');
+    sp=await tfl('/StopPoint/'+encodeURIComponent(m.id));
+    if(!st.ics&&m.icsId) st.ics=m.icsId;
+  }
+  if(Array.isArray(sp)) sp=sp[0];
+  const own=sp.naptanId||sp.id||st.id;
+  let hub=null;
+  if(/^HUB/i.test(own)) hub=sp;
+  else if(sp.hubNaptanCode){try{hub=await tfl('/StopPoint/'+encodeURIComponent(sp.hubNaptanCode));if(Array.isArray(hub))hub=hub[0];}catch(e){hub=null;}}
+  const ids=[],lines=[];
+  const addId=id=>{if(isStationId(id)&&ids.indexOf(id)<0)ids.push(id);};
+  const kids=x=>(x&&x.children)||[];
+  const addGroups=x=>((x&&x.lineModeGroups)||[]).forEach(g=>(g.lineIdentifier||[]).forEach(id=>{
+    if(id&&LIVE_MODES.has(g.modeName)&&!lines.some(l=>l.id===id)) lines.push({id,mode:g.modeName});}));
+  addId(own);
+  [sp,hub].forEach(x=>{kids(x).forEach(c=>{addId(c.naptanId||c.id);addGroups(c);});addGroups(x);});
+  if(!ids.length&&!lines.length) throw new TflError(0,'TfL has no train lines for '+cleanName(st.name)+'. Edit the route and pick a station.');
+  st.ids=ids; st.lines=lines;
+  st.ics=st.ics||sp.icsCode||(hub&&hub.icsCode)||((kids(hub||sp).find(c=>c.icsCode))||{}).icsCode||'';
+  if(st.lat==null&&sp.lat!=null){st.lat=sp.lat;st.lon=sp.lon;}
+  st.v=2; st.at=Date.now();
+  return st;
+}
+function stationParams(st){
+  const out=[];
+  if(st.ics) out.push(String(st.ics));
+  if(st.ids&&st.ids[0]) out.push(st.ids[0]);
+  if(st.lat!=null&&st.lon!=null) out.push((+st.lat).toFixed(5)+','+(+st.lon).toFixed(5));
+  if(!out.length) out.push(st.id);
+  return [...new Set(out)];
+}
+async function planOnce(f,t,o,d,extra){
+  const url=new URL(API+'/Journey/JourneyResults/'+encodeURIComponent(f)+'/to/'+encodeURIComponent(t));
+  url.searchParams.set('mode',JOURNEY_MODES);
+  Object.entries(extra).forEach(([k,v])=>url.searchParams.set(k,v));
+  let r;
+  try{r=await fetch(url.toString(),{cache:'no-store'});}catch(e){throw new TflError(0,'Couldn’t reach TfL. Check your connection.');}
+  if(r.status===300){
+    let dj=null;try{dj=await r.json();}catch(e){}
+    return {status:300,nf:pickDisamb(dj&&dj.fromLocationDisambiguation,o.name,f),nt:pickDisamb(dj&&dj.toLocationDisambiguation,d.name,t)};
+  }
+  if(!r.ok) return {status:r.status};
+  const dj=await r.json();
+  return {status:200,journeys:dj.journeys||[]};
+}
+async function planJourneys(o,d){
+  const A=stationParams(o),B=stationParams(d),n=Math.max(A.length,B.length);
+  let last=0;
+  for(let i=0;i<n;i++){
+    let f=A[Math.min(i,A.length-1)],t=B[Math.min(i,B.length-1)],extra={includeAlternativeRoutes:'true'};
+    for(let k=0;k<3;k++){
+      const res=await planOnce(f,t,o,d,extra);
+      if(res.status===200) return res.journeys;
+      if(res.status===400&&extra.includeAlternativeRoutes){extra={};continue;}
+      if(res.status===300&&res.nf&&res.nt&&(res.nf!==f||res.nt!==t)){f=res.nf;t=res.nt;continue;}
+      last=res.status;break;
     }
-    if(r.status===404) throw new Error('TfL found no journey between these stations (404).');
-    if(!r.ok) throw new Error('TfL returned an error ('+r.status+'). Try again in a moment.');
-    const d=await r.json();
-    return (d.journeys||[]).slice(0,4);
+    if(last===429) break;
   }
-  throw new Error('TfL couldn’t match the stations. Remove this route and add it again.');
+  if(last===429) throw new TflError(429,'TfL is limiting requests (429). Wait a minute, then tap Refresh.');
+  if(last===404) throw new TflError(404,'TfL found no journey between these stations (404).');
+  if(last===300) throw new TflError(300,'TfL couldn’t match these stations (300). Edit the route and pick the stations again.');
+  throw new TflError(last,'TfL journey planner error ('+last+').');
 }
-const routeCache=new Map();
-function getRoutes(lineId){
-  if(!routeCache.has(lineId)){
-    const p=Promise.all(['inbound','outbound'].map(d=>
-      tfl('/Line/'+lineId+'/Route/Sequence/'+d,{serviceTypes:'Regular'})
-        .then(r=>(r.orderedLineRoutes||[]).map(o=>o.naptanIds||[])).catch(()=>[])
-    )).then(a=>a.flat());
-    routeCache.set(lineId,p);
-    p.then(r=>{if(!r.length) routeCache.delete(lineId);});
+const planMem=new Map();
+function fetchJourneys(o,d,force){
+  const key=stationParams(o)[0]+'>'+stationParams(d)[0];
+  const h=planMem.get(key);
+  if(!force&&h&&Date.now()-h.t<180000) return h.p;
+  const p=planJourneys(o,d); planMem.set(key,{t:Date.now(),p}); p.catch(()=>planMem.delete(key));
+  return p;
+}
+async function legTrains(line,mode,dep,arr,rideHintSec,nowMs){
+  const seq=await getSeqs(line);
+  const useV=mode==='tube';
+  const base='/Line/'+encodeURIComponent(line)+'/Arrivals/';
+  const [preds,arrPreds]=await Promise.all([tflMemo(base+encodeURIComponent(dep)),useV?tflMemo(base+encodeURIComponent(arr)).catch(()=>null):null]);
+  const res=classifyRows({preds,arrPreds,routes:seq.routes,names:seq.names,dep,arr,line,rideHintSec,useVehicles:useV,nowMs});
+  res.lineName=seq.lineName||lineNameOf(line);
+  return res;
+}
+async function loadStatus(ids,nowMs){
+  ids=[...new Set(ids.filter(Boolean))];
+  if(!ids.length) return {};
+  const arr=await tflMemo('/Line/'+ids.map(encodeURIComponent).join(',')+'/Status',60000);
+  const rank={closed:3,bad:2,warn:1}, m={};
+  (arr||[]).forEach(l=>{
+    const cur=currentStatuses(l.lineStatuses,nowMs).filter(s=>statusLevel(s.statusSeverity)!=='ok');
+    if(!cur.length){m[l.id]={level:'ok',name:l.name};return;}
+    cur.sort((a,b)=>rank[statusLevel(b.statusSeverity)]-rank[statusLevel(a.statusSeverity)]);
+    m[l.id]={level:statusLevel(cur[0].statusSeverity),desc:cur[0].statusSeverityDescription,reasons:[...new Set(cur.map(s=>s.reason).filter(Boolean))],name:l.name};
+  });
+  return m;
+}
+
+/* ---------- route data ---------- */
+function pt(p){return (p&&p.naptanId)||'';}
+function legLineName(l){const o=l&&l.routeOptions&&l.routeOptions[0];return (o&&o.lineIdentifier&&o.lineIdentifier.name)||(o&&o.name)||(l&&l.mode&&l.mode.name)||'';}
+async function evalJourney(j,ctx){
+  const legs=j.legs||[], tIdx=[];
+  legs.forEach((l,i)=>{if(!isWalk(l))tIdx.push(i);});
+  const out={j,legs,sig:journeySig(j),lineIds:[...new Set(tIdx.map(i=>legLine(legs[i])).filter(Boolean))],direct:false,kind:'walk',est:null,train:null,rows:null,F:null};
+  if(!tIdx.length){out.est=ctx.nowMs+(j.duration||0)*60000;return out;}
+  const F=legs[tIdx[0]]; out.F=F;
+  const pre=legs.slice(0,tIdx[0]).reduce((a,l)=>a+(l.duration||0),0)*60000;
+  const line=legLine(F),mode=F.mode&&F.mode.id,dep=pt(F.departurePoint),arr=pt(F.arrivalPoint);
+  Object.assign(out,{line,lineName:legLineName(F),depName:cleanName(F.departurePoint&&F.departurePoint.commonName),arrName:cleanName(F.arrivalPoint&&F.arrivalPoint.commonName)});
+  out.direct=tIdx.length===1&&ctx.direct.some(x=>x.line===line&&x.dep===dep&&x.arr===arr);
+  const timetable=()=>{
+    out.kind='timetable';
+    const e=londonLocalToMs(j.arrivalDateTime),s=londonLocalToMs(F.departureTime);
+    out.est=isFinite(e)?e:null; out.firstAt=isFinite(s)?s:null;
+    return out;
+  };
+  if(!LIVE_MODES.has(mode)||!line||!dep||!arr) return timetable();
+  let res;
+  try{res=await legTrains(line,mode,dep,arr,ctx.hint(line,dep,arr)||(F.duration||0)*60,ctx.nowMs);}catch(e){return timetable();}
+  out.kind='live'; out.rows=res.rows;
+  const t=firstYes(res.rows,ctx.nowMs,ctx.nowMs+pre); out.train=t;
+  if(!t){
+    // Trains are running but none is predicted late enough to catch after the walk: live times don't reach that far.
+    if(res.rows.some(r=>r.serves==='yes')){
+      out.kind='estimate';
+      let dur=plannerDiff(j.arrivalDateTime,j.startDateTime);
+      if(!isFinite(dur)||dur<=0) dur=(j.duration||0)*60000;
+      out.est=ctx.nowMs+dur;
+    }
+    return out;
   }
-  return routeCache.get(lineId);
+  let rest=t.arrAt!=null?plannerDiff(j.arrivalDateTime,F.arrivalTime):plannerDiff(j.arrivalDateTime,F.departureTime);
+  if(!isFinite(rest)||rest<0){
+    const after=legs.slice(tIdx[0]+1).reduce((a,l)=>a+(l.duration||0),0)*60000;
+    rest=t.arrAt!=null?after:after+(F.duration||0)*60000;
+  }
+  out.est=(t.arrAt!=null?t.arrAt:t.at)+rest;
+  return out;
 }
-function legLine(l){const o=l.routeOptions&&l.routeOptions[0];return o&&o.lineIdentifier?o.lineIdentifier.id:'';}
-function legLineName(l){const o=l.routeOptions&&l.routeOptions[0];return (o&&o.lineIdentifier&&o.lineIdentifier.name)||(o&&o.name)||(l.mode&&l.mode.name)||'';}
-async function loadLive(j){
-  const legs=j.legs||[];
-  const idx=legs.findIndex(l=>l.mode&&l.mode.id!=='walking');
-  if(idx<0) return {none:true};
-  const leg=legs[idx];
-  const walkSec=legs.slice(0,idx).reduce((a,l)=>a+(l.duration||0)*60,0);
-  const lineId=legLine(leg);
-  const dep=leg.departurePoint&&leg.departurePoint.naptanId, arr=leg.arrivalPoint&&leg.arrivalPoint.naptanId;
-  const base={leg,walkSec,lineId,lineName:legLineName(leg),depName:cleanName(leg.departurePoint&&leg.departurePoint.commonName),arrName:cleanName(leg.arrivalPoint&&leg.arrivalPoint.commonName)};
-  if(!LIVE_MODES.has(leg.mode.id)||!lineId||!dep||!arr) return {...base,unsupported:true};
-  const [preds,routes,arrPreds]=await Promise.all([
-    tflMemo('/Line/'+lineId+'/Arrivals/'+dep),
-    getRoutes(lineId),
-    tflMemo('/Line/'+lineId+'/Arrivals/'+arr).catch(()=>null)
-  ]);
-  const rows=classifyRows(preds,arrPreds,routes,dep,arr,(leg.duration||0)*60,Date.now());
-  return {...base,rows,fetchedAt:Date.now()};
-}
-async function loadStatus(){
-  const ids=[...new Set(S.journeys.flatMap(j=>(j.legs||[]).filter(l=>l.mode&&LIVE_MODES.has(l.mode.id)).map(legLine)).filter(Boolean))];
-  if(!ids.length){S.status={};return;}
-  try{
-    const arr=await tflMemo('/Line/'+ids.join(',')+'/Status');
-    const m={};
-    arr.forEach(l=>{
-      const ls=(l.lineStatuses||[]).slice().sort((a,b)=>a.statusSeverity-b.statusSeverity)[0];
-      if(ls) m[l.id]={sev:ls.statusSeverity,desc:ls.statusSeverityDescription,reason:ls.reason||''};
-    });
-    S.status=m;
-  }catch(e){}
+async function computeRoute(route,reversed,opts){
+  opts=opts||{};
+  const nowMs=Date.now();
+  const [o,d]=await Promise.all([resolveStation(reversed?route.to:route.from),resolveStation(reversed?route.from:route.to)]);
+  saveStore();
+  const out={o,d,nowMs,board:null,cards:[],status:{},boardErr:null,planErr:null,direct:[]};
+  const cand=[];
+  o.lines.concat(d.lines).forEach(l=>{if(LIVE_MODES.has(l.mode)&&!cand.some(c=>c.id===l.id))cand.push(l);});
+  const seqs=await Promise.all(cand.map(l=>getSeqs(l.id).catch(e=>{out.boardErr=e;return null;})));
+  const direct=[];
+  cand.forEach((l,i)=>{const s=seqs[i];if(!s)return;const pr=findPair(s.routes,o.ids,d.ids);
+    if(pr)direct.push({line:l.id,mode:l.mode,dep:pr.dep,arr:pr.arr,lineName:s.lineName||lineNameOf(l.id)});});
+  out.direct=direct;
+  let journeys=[];
+  if(opts.cards||!direct.length){try{journeys=await fetchJourneys(o,d,opts.force);}catch(e){out.planErr=e;}}
+  const hint=(line,dep,arr)=>{for(const j of journeys)for(const l of (j.legs||[]))
+    if(legLine(l)===line&&pt(l.departurePoint)===dep&&pt(l.arrivalPoint)===arr&&l.duration>0)return l.duration*60;return null;};
+  const ctx={direct,hint,nowMs};
+  if(direct.length){
+    const res=await Promise.all(direct.map(x=>legTrains(x.line,x.mode,x.dep,x.arr,hint(x.line,x.dep,x.arr),nowMs).catch(e=>{out.boardErr=e;return null;})));
+    const rows=[];
+    res.forEach((r,i)=>{if(r)r.rows.forEach(row=>rows.push(Object.assign(row,{line:direct[i].line,lineName:direct[i].lineName})));});
+    rows.sort((a,b)=>a.at-b.at);
+    out.board={kind:'direct',lines:direct,rows,failed:res.filter(r=>!r).length,depName:cleanName(o.name),arrName:cleanName(d.name)};
+  }
+  let evals=[];
+  if(journeys.length){
+    const seen=new Set(),uniq=[];
+    journeys.forEach(j=>{const s=journeySig(j);if(!seen.has(s)){seen.add(s);uniq.push(j);}});
+    evals=await Promise.all(uniq.slice(0,8).map(j=>evalJourney(j,ctx).catch(()=>null)));
+    evals=evals.filter(Boolean);
+  }
+  if(!direct.length){
+    const b=evals.filter(e=>e.kind==='live'&&e.rows).sort(byEst)[0];
+    if(b){
+      const nxt=b.legs.slice(b.legs.indexOf(b.F)+1).find(l=>!isWalk(l));
+      out.board={kind:'firstleg',lines:[{line:b.line,lineName:b.lineName}],rows:b.rows.map(r=>Object.assign(r,{line:b.line,lineName:b.lineName})),failed:0,
+        depName:b.depName,arrName:b.arrName,next:nxt?'then change to the '+lineLabel(legLineName(nxt)):''};
+    }
+  }
+  if(opts.cards){
+    let dcard=evals.find(c=>c.direct)||null;
+    const others=evals.filter(c=>!c.direct).sort(byEst).slice(0,3);
+    if(!dcard&&out.board&&out.board.kind==='direct'){
+      const t=firstYes(out.board.rows,nowMs);
+      const dl=(t&&direct.find(x=>x.line===t.line))||direct[0];
+      dcard={synthetic:true,direct:true,sig:'direct',kind:'live',train:t,est:t&&t.arrAt!=null?t.arrAt:null,lineIds:[dl.line],
+        line:dl.line,lineName:dl.lineName,depName:cleanName(o.name),arrName:cleanName(d.name),legs:[]};
+    }
+    out.cards=(dcard?[dcard]:[]).concat(others).sort(byEst);
+    const ids=new Set();
+    (out.board?out.board.lines:[]).forEach(l=>ids.add(l.line));
+    out.cards.forEach(c=>(c.lineIds||[]).forEach(x=>ids.add(x)));
+    try{out.status=await loadStatus([...ids],nowMs);}catch(e){out.status={};}
+  }
+  return out;
 }
 
 /* ---------- helpers ---------- */
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const LINE_COLOURS={bakerloo:'#B36305',central:'#E32017',circle:'#FFD300',district:'#00782A','hammersmith-city':'#F3A9BB',jubilee:'#7B8085',metropolitan:'#9B0056',northern:'#1A1A1A',piccadilly:'#003688',victoria:'#0098D4','waterloo-city':'#76D0BD',dlr:'#00A4A7','elizabeth':'#6950A1','elizabeth-line':'#6950A1',lioness:'#FA7B05',mildmay:'#0071CE',windrush:'#ED1B00',weaver:'#832F5B',suffragette:'#5BBD72',liberty:'#676767',tram:'#5FB526','national-rail':'#444444'};
+const LINE_COLOURS={bakerloo:'#B36305',central:'#E32017',circle:'#FFD300',district:'#00782A','hammersmith-city':'#F3A9BB',jubilee:'#7B8085',metropolitan:'#9B0056',northern:'#1A1A1A',piccadilly:'#003688',victoria:'#0098D4','waterloo-city':'#76D0BD',dlr:'#00A4A7',elizabeth:'#6950A1','elizabeth-line':'#6950A1',lioness:'#FA7B05',mildmay:'#0071CE',windrush:'#ED1B00',weaver:'#832F5B',suffragette:'#5BBD72',liberty:'#676767',tram:'#5FB526','national-rail':'#444444'};
+const LINE_NAMES={bakerloo:'Bakerloo',central:'Central',circle:'Circle',district:'District','hammersmith-city':'Hammersmith & City',jubilee:'Jubilee',metropolitan:'Metropolitan',northern:'Northern',piccadilly:'Piccadilly',victoria:'Victoria','waterloo-city':'Waterloo & City',dlr:'DLR',elizabeth:'Elizabeth line',liberty:'Liberty',lioness:'Lioness',mildmay:'Mildmay',suffragette:'Suffragette',weaver:'Weaver',windrush:'Windrush',tram:'Tram'};
+function lineNameOf(id){return LINE_NAMES[id]||id;}
+function lineLabel(name){name=String(name||'');return /\bline$/i.test(name)||/^dlr$/i.test(name)||/tram/i.test(name)?name:name+' line';}
 function textOn(hex){const n=parseInt(hex.slice(1),16),r=n>>16,g=(n>>8)&255,b=n&255;return (0.299*r+0.587*g+0.114*b)>160?'#101010':'#FFFFFF';}
-function chip(id,name){const c=LINE_COLOURS[id]||'#555B66';return '<span class="chip" style="background:'+c+';color:'+textOn(c)+'">'+esc(name||id)+'</span>';}
-function hhmm(iso){return iso?String(iso).slice(11,16):'';}
+function chip(id,name){const c=LINE_COLOURS[id]||'#555B66';return '<span class="chip" style="background:'+c+';color:'+textOn(c)+'">'+esc(name||lineNameOf(id))+'</span>';}
+function clock(ms){return new Date(ms).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/London'});}
+function minsFromNow(ms,now){return Math.max(0,Math.round((ms-now)/60000));}
 
 /* ---------- state ---------- */
-const S={view:'home',route:null,reversed:false,loading:false,err:null,journeys:[],live:{},status:{},open:0,other:{},updated:null,confirmDel:false,token:0,
-  add:{from:null,to:null,both:true,res:{from:[],to:[]},name1:'',name2:''}};
+const S={view:'home',route:null,reversed:false,loading:false,err:null,data:null,updated:null,open:{},showHidden:false,confirmDel:false,token:0,glance:{},form:null};
 const $app=document.getElementById('app');
 
 /* ---------- views ---------- */
 function homeView(){
-  const cards=store.routes.map(r=>'<button class="route" data-act="open" data-id="'+esc(r.id)+'"><span><span class="name">'+esc(r.name)+'</span><div class="sub">'+esc(cleanName(r.from.name))+' → '+esc(cleanName(r.to.name))+'</div></span><span class="go" aria-hidden="true">›</span></button>').join('');
+  const now=Date.now();
+  const cards=store.routes.map(r=>{
+    const g=S.glance[r.id];
+    let right='<span class="glance"><small>Loading…</small></span>';
+    if(g){
+      if(g.err) right='<span class="glance"><small>Couldn’t load</small></span>';
+      else if(g.none) right='<span class="glance"><small>No live times</small></span>';
+      else if(g.at==null) right='<span class="glance"><small>Next train</small><b class="none">None showing</b></span>';
+      else right='<span class="glance"><small>Next train</small><b>'+esc(minsLabel((g.at-now)/1000))+'</b>'+(g.change?'<small>change at '+esc(g.change)+'</small>':'')+'</span>';
+    }
+    return '<button class="route" data-act="open" data-id="'+esc(r.id)+'"><span><span class="name">'+esc(r.name)+'</span><div class="sub">'+esc(cleanName(r.from.name))+' → '+esc(cleanName(r.to.name))+'</div></span>'+right+'</button>';
+  }).join('');
   return '<div class="top"><h1>Tube Times</h1><button class="btn primary" data-act="add">Add route</button></div>'+
     (store.routes.length?'<div class="stack">'+cards+'</div>':
      '<div class="empty"><p>Save the trips you make most, like home to work and back, then tap one to see which trains are really coming.</p><p>Tip: add this page to your Home Screen before saving routes, so they stay on your phone.</p><button class="btn primary" data-act="add">Add your first route</button></div>')+
     '<p class="foot">Live times from Transport for London. Saved routes stay on this device.</p>';
 }
-function addView(){
-  const a=S.add;
+function formView(){
+  const f=S.form;
   const picker=(which,label)=>{
-    const v=a[which];
+    const v=f[which];
     return '<div class="field"><label for="q-'+which+'">'+label+'</label>'+
       (v?'<div class="chosen"><span>'+esc(cleanName(v.name))+'</span><button class="btn ghost" data-act="unpick" data-which="'+which+'">Change</button></div>':
         '<input type="search" id="q-'+which+'" data-which="'+which+'" placeholder="Start typing a station" autocomplete="off" autocapitalize="off" spellcheck="false"><div class="results" id="res-'+which+'"></div>')+
       '</div>';
   };
-  const defName=(a.from&&a.to)?cleanName(a.from.name)+' → '+cleanName(a.to.name):'';
-  const defBack=(a.from&&a.to)?cleanName(a.to.name)+' → '+cleanName(a.from.name):'';
-  return '<div class="top"><h1 class="small">New route</h1><button class="btn" data-act="cancel">Cancel</button></div>'+
+  const defName=(f.from&&f.to)?cleanName(f.from.name)+' → '+cleanName(f.to.name):'';
+  const defBack=(f.from&&f.to)?cleanName(f.to.name)+' → '+cleanName(f.from.name):'';
+  const adding=f.mode==='add';
+  return '<div class="top"><h1 class="small">'+(adding?'New route':'Edit route')+'</h1><button class="btn" data-act="cancel">Cancel</button></div>'+
     picker('from','From')+picker('to','To')+
-    '<div class="field"><label for="name1">Name (optional)</label><input type="text" id="name1" value="'+esc(a.name1)+'" placeholder="'+esc(defName||'e.g. Home to work')+'"></div>'+
-    '<label class="check"><input type="checkbox" id="both"'+(a.both?' checked':'')+'> Also save the return trip</label>'+
-    (a.both?'<div class="field"><label for="name2">Return name (optional)</label><input type="text" id="name2" value="'+esc(a.name2)+'" placeholder="'+esc(defBack||'e.g. Work to home')+'"></div>':'')+
-    '<div id="add-err" class="hint" role="alert"></div>'+
-    '<button class="btn primary" data-act="save">Save route</button>';
+    '<div class="field"><label for="name1">Name'+(adding?' (optional)':'')+'</label><input type="text" id="name1" value="'+esc(f.name1)+'" placeholder="'+esc(defName||'e.g. To work')+'"></div>'+
+    (adding?'<label class="check"><input type="checkbox" id="both"'+(f.both?' checked':'')+'> Also save the return trip</label>'+
+      (f.both?'<div class="field"><label for="name2">Return name (optional)</label><input type="text" id="name2" value="'+esc(f.name2)+'" placeholder="'+esc(defBack||'e.g. To home')+'"></div>':''):'')+
+    '<div id="form-err" class="hint" role="alert"></div>'+
+    '<button class="btn primary" data-act="save">'+(adding?'Save route':'Save changes')+'</button>';
 }
-function statusFor(id){return S.status&&S.status[id];}
-function journeyCard(j,i){
-  const L=S.live[i]; const now=Date.now();
-  const legs=j.legs||[];
-  const chips=legs.map(l=>l.mode&&l.mode.id==='walking'?'<span class="walk">Walk '+(l.duration||0)+' min</span>':chip(legLine(l)||l.mode&&l.mode.id,legLineName(l))).join('');
-  let next='',est='';
-  if(L&&L.rows){
-    const ok=pickNext(L.rows,L.walkSec,now);
-    if(ok.length){
-      const secs=secsUntil(ok[0],now);
-      next='<div class="jnext">Next train <span>'+minsLabel(secs)+'</span></div>';
-    }else next='<div class="jnext"><span>No train found</span></div>';
-  }
-  const lineIds=[...new Set(legs.filter(l=>l.mode&&LIVE_MODES.has(l.mode.id)).map(legLine).filter(Boolean))];
-  const bad=lineIds.filter(id=>{const s=statusFor(id);return s&&s.sev<10;});
-  const pills=bad.map(id=>{const s=statusFor(id);const nm=(legs.find(l=>legLine(l)===id)&&legLineName(legs.find(l=>legLine(l)===id)))||id;return '<span class="pill '+(s.sev<=6?'bad':'warn')+'">'+esc(nm)+': '+esc(s.desc)+'</span>';}).join(' ');
-  const open=S.open===i;
-  let body='';
-  if(open){
-    const legList=legs.map(l=>{
-      const walking=l.mode&&l.mode.id==='walking';
-      const stops=l.path&&l.path.stopPoints?Math.max(0,l.path.stopPoints.length-1):0;
-      return '<li><span>'+esc((l.instruction&&l.instruction.summary)||'')+(walking?'':'<small>'+esc(cleanName(l.departurePoint&&l.departurePoint.commonName))+' → '+esc(cleanName(l.arrivalPoint&&l.arrivalPoint.commonName))+(stops?' · '+stops+' stop'+(stops>1?'s':''):'')+'</small>')+'</span><span class="dur">'+(l.duration||0)+' min</span></li>';
-    }).join('');
-    const reasons=bad.map(id=>{const s=statusFor(id);return s.reason?'<p class="note">'+esc(s.reason)+'</p>':'';}).join('');
-    const good=!bad.length&&lineIds.length?'<p class="note">Good service on '+lineIds.map(id=>esc(legLineName(legs.find(l=>legLine(l)===id)))).join(', ')+'.</p>':'';
-    body='<div class="jbody"><ul class="legs">'+legList+'</ul>'+reasons+good+boardHtml(i)+'</div>';
-  }
-  return '<div class="card"><button class="jhead" data-act="toggle" data-i="'+i+'" aria-expanded="'+open+'">'+
-    '<div class="jline1"><div class="jtimes">'+esc(hhmm(j.startDateTime))+' → '+esc(hhmm(j.arrivalDateTime))+' <span class="meta">'+(j.duration||0)+' min</span></div>'+next+'</div>'+
-    '<div class="jline2">'+chips+'</div>'+(pills?'<div class="jline2">'+pills+'</div>':'')+'</button>'+body+'</div>';
+function statusLine(lines,status){
+  const parts=lines.map(l=>{
+    const s=status[l.line]; if(!s) return '';
+    if(s.level==='ok') return '<span class="ok">'+esc(lineLabel(l.lineName))+': good service</span>';
+    return '<span class="'+(s.level==='warn'?'warn':'bad')+'">'+esc(lineLabel(l.lineName))+': '+esc(s.desc)+'</span>'+(s.reasons.length?'<br>'+s.reasons.map(esc).join('<br>'):'');
+  }).filter(Boolean);
+  return parts.length?'<div class="bstatus">'+parts.join('<br>')+'</div>':'';
 }
-function boardHtml(i){
-  const L=S.live[i]; const now=Date.now();
-  if(!L) return '<div class="board"><div class="msg">Loading live times…</div></div>';
-  if(L.error) return '<div class="board"><div class="msg">Couldn’t load live times for this trip. Tap Refresh to try again.</div></div>';
-  if(L.none) return '';
-  if(L.unsupported) return '<p class="note">Live times aren’t available for the first leg of this trip ('+esc(L.lineName)+').</p>';
-  const main=L.rows.filter(r=>r.serves!==false);
-  const hidden=L.rows.filter(r=>r.serves===false);
-  const catchable=pickNext(L.rows,L.walkSec,now);
-  const first=catchable[0];
-  let hero='';
+function bannerHtml(D,now){
+  const b=D.board; if(!b) return '';
+  const first=firstYes(b.rows,now);
+  const gap=first?(first.at-now)/1000:Infinity;
+  const closed=b.lines.filter(l=>D.status[l.line]&&D.status[l.line].level==='closed');
+  if(gap<1200&&!closed.length) return '';
+  const arr=esc(b.arrName);
+  let head,body='';
+  if(closed.length){
+    head=closed.map(l=>esc(lineLabel(l.lineName))+': '+esc(D.status[l.line].desc)).join(' · ');
+    body+='<p>'+(first?'Next train that stops at '+arr+': '+esc(minsLabel(gap))+'.':'No train that stops at '+arr+' is showing.')+'</p>';
+  }else head=first?'No train to '+arr+' for '+Math.floor(gap/60)+' min':'No train to '+arr+' is showing';
+  const early=b.rows.find(r=>r.serves==='maybe'&&r.at>=now-30000&&(!first||r.at<first.at));
+  if(early) body+='<p>A train due in '+esc(minsLabel((early.at-now)/1000))+' isn’t confirmed to stop at '+arr+'. Check the front of the train.</p>';
+  const alt=(D.cards||[]).filter(c=>!c.direct&&c.est!=null).sort(byEst)[0];
+  if(alt) body+='<p>Quickest other way: '+esc(describeCard(alt))+', arriving '+esc(clock(alt.est))+'.</p><button class="btn" data-act="toalts">See other ways</button>';
+  else if(D.cards&&D.cards.length) body+='<button class="btn" data-act="toalts">See other ways</button>';
+  return '<div class="banner" role="alert"><strong>'+head+'</strong>'+body+'</div>';
+}
+function boardHtml(D,now){
+  const b=D.board;
+  if(!b){
+    if(D.boardErr) return '<div class="board"><div class="msg">Couldn’t load live trains. '+esc(errText(D.boardErr))+'</div></div>';
+    if(D.planErr) return '<div class="board"><div class="msg">No direct train, and the journey planner didn’t answer. '+esc(errText(D.planErr))+'</div></div>';
+    return '<div class="board"><div class="msg">No live departures for this trip. See the ways to get there below.</div></div>';
+  }
+  const rows=b.rows.filter(r=>r.at>=now-60000);
+  const multi=b.lines.length>1;
+  const head='<div class="bhead">'+b.lines.map(l=>chip(l.line,l.lineName)).join('')+'<span>'+esc(b.depName)+'</span></div>'+
+    '<div class="bsub">'+(b.kind==='direct'?'Trains that stop at '+esc(b.arrName):'No direct train. These trains stop at '+esc(b.arrName)+(b.next?', '+esc(b.next):'')+'.')+'</div>'+
+    statusLine(b.lines,D.status||{});
+  if(b.failed&&!rows.length) return '<div class="board">'+head+'<div class="msg">Couldn’t load live trains. '+esc(errText(D.boardErr))+' Tap Refresh to try again.</div></div>';
+  const yes=rows.filter(r=>r.serves==='yes');
+  const first=yes.find(r=>r.at>=now-30000);
+  let hero;
   if(first){
-    const s=secsUntil(first,now);
-    const thens=catchable.slice(1,3).map(r=>Math.max(0,Math.floor(secsUntil(r,now)/60))).join(', ');
-    hero='<div class="hero"><span class="big">'+esc(minsLabel(s))+'</span>'+(thens?'<span class="then">then '+esc(thens)+' min</span>':'')+'</div>';
-    if(s>=600) hero+='<div class="warnline">Long gap: the next train that goes where you’re going is '+Math.floor(s/60)+' minutes away. Check the other options above.</div>';
-  }else hero='<div class="hero"><span class="big">–</span></div><div class="warnline">No train heading to '+esc(L.arrName)+' is showing right now.</div>';
+    const s=(first.at-now)/1000;
+    const thens=yes.filter(r=>r!==first&&r.at>first.at).slice(0,2).map(r=>Math.max(0,Math.floor((r.at-now)/60000)));
+    hero='<div class="hero"><span class="big">'+esc(minsLabel(s))+'</span>'+(thens.length?'<span class="then">then '+thens.join(', ')+' min</span>':'')+'</div>'+
+      (first.arrAt?'<div class="herosub">'+(first.arrExact?'Arrives ':'Arrives about ')+esc(b.arrName)+' '+esc(clock(first.arrAt))+'</div>':'');
+    if(s>=600&&s<1200) hero+='<div class="warnline">The next train that stops at '+esc(b.arrName)+' is '+Math.floor(s/60)+' min away.</div>';
+  }else hero='<div class="warnline" style="margin-top:14px">No train that stops at '+esc(b.arrName)+' is showing right now.</div>';
   const rowHtml=(r,dim)=>{
-    const s=secsUntil(r,now); const soon=tooSoon(r,L.walkSec,now);
-    const tag=soon?'<span class="tag">Too soon</span>':(r.serves===null?'<span class="tag">Unconfirmed</span>':'');
-    const isFirst=!dim&&first&&r===first;
-    return '<div class="trow'+(dim||soon?' dim':'')+(isFirst?' first':'')+'"><div class="dest">'+esc(r.dest||'Check front of train')+'<small>'+esc([r.plat,r.loc].filter(Boolean).join(' · '))+'</small></div>'+tag+'<div class="mins">'+esc(minsLabel(s))+'</div></div>';
+    const s=(r.at-now)/1000;
+    const sub1=[r.via?'via '+r.via:'',r.plat].filter(Boolean).join(' · ');
+    const arrTxt=!dim&&r.serves==='yes'&&r.arrAt?'<small class="arr">'+(r.arrExact?'Arrives ':'Arrives about ')+esc(clock(r.arrAt))+'</small>':'';
+    const tag=r.serves==='maybe'?'<span class="tag">Not confirmed</span>':'';
+    return '<div class="trow'+(dim?' dim':'')+(!dim&&r===first?' first':'')+'"><div class="dest">'+(multi?chip(r.line,r.lineName)+' ':'')+esc(r.dest||'Check front of train')+
+      (sub1?'<small>'+esc(sub1)+'</small>':'')+(r.loc?'<small>'+esc(r.loc)+'</small>':'')+arrTxt+'</div>'+
+      '<div class="right">'+tag+'<span class="mins">'+esc(minsLabel(s))+'</span><span class="clk">'+esc(clock(r.at))+'</span></div></div>';
   };
-  const showOther=!!S.other[i];
-  return '<div class="board"><div class="bhead">'+chip(L.lineId,L.lineName)+'<span>'+esc(L.depName)+'</span></div>'+
-    '<div class="bsub">Trains that call at '+esc(L.arrName)+(L.walkSec?' · includes '+Math.round(L.walkSec/60)+' min walk to the station':'')+'</div>'+
-    hero+main.slice(0,6).map(r=>rowHtml(r,false)).join('')+
-    (hidden.length?'<button class="linkbtn" data-act="other" data-i="'+i+'">'+(showOther?'Hide':'Show')+' '+hidden.length+(hidden.length>1?' trains that don’t':' train that doesn’t')+' stop at '+esc(L.arrName)+'</button>'+(showOther?hidden.slice(0,6).map(r=>rowHtml(r,true)).join(''):''):'')+
+  const main=rows.filter(r=>r.serves!=='no').slice(0,8);
+  const hidden=rows.filter(r=>r.serves==='no');
+  const anyMaybe=main.some(r=>r.serves==='maybe');
+  return '<div class="board">'+head+hero+main.map(r=>rowHtml(r,false)).join('')+
+    (anyMaybe?'<div class="small-note">Not confirmed: TfL hasn’t said yet whether this train stops at '+esc(b.arrName)+'. Check the front of the train.</div>':'')+
+    (hidden.length?'<button class="linkbtn" data-act="hidden">'+(S.showHidden?'Hide':'Show')+' '+hidden.length+(hidden.length>1?' trains that don’t':' train that doesn’t')+' stop at '+esc(b.arrName)+'</button>'+
+      (S.showHidden?hidden.slice(0,10).map(r=>rowHtml(r,true)).join(''):''):'')+
     '</div>';
 }
+function describeCard(c){
+  if(c.synthetic) return lineLabel(c.lineName);
+  const names=[...new Set(c.legs.filter(l=>!isWalk(l)).map(l=>lineLabel(legLineName(l))))];
+  const last=c.legs[c.legs.length-1];
+  let s=names.join(' + ')||'Walk';
+  if(names.length&&last&&isWalk(last)&&last.duration>=3) s+=', then walk '+last.duration+' min';
+  return s;
+}
+function cardHtml(c,best,now){
+  const key=c.sig;
+  const open=!!S.open[key];
+  let cmp;
+  if(c.est==null) cmp='<span class="cmp none">No train showing</span>';
+  else if(best==null||c.est-best<30000) cmp='<span class="cmp best">Fastest</span>';
+  else cmp='<span class="cmp">+'+Math.round((c.est-best)/60000)+' min</span>';
+  const arrive=c.est!=null?'Arrives '+esc(clock(c.est))+' <span>· '+minsFromNow(c.est,now)+' min</span>':'Arrival unknown';
+  const chips=c.synthetic?chip(c.line,c.lineName):c.legs.map(l=>isWalk(l)?(l.duration>=1?'<span class="walk">Walk '+l.duration+' min</span>':''):chip(legLine(l)||(l.mode&&l.mode.id),legLineName(l))).join('');
+  let first='';
+  if(c.kind==='live'){
+    first=c.train?'Next train <b>'+esc(minsLabel((c.train.at-now)/1000))+'</b> from '+esc(c.depName)+' · '+esc(lineLabel(c.lineName)):
+      '<span class="none">No train showing</span> on the '+esc(lineLabel(c.lineName))+' from '+esc(c.depName);
+  }else if(c.kind==='estimate') first='Live times don’t reach that far ahead yet, so this uses the timetable.';
+  else if(c.kind==='timetable') first='Timetable only'+(c.firstAt?': leaves '+esc(c.depName)+' at <b>'+esc(clock(c.firstAt))+'</b>':'');
+  else first='Walk all the way';
+  const pills=(c.lineIds||[]).map(id=>{const s=S.data.status[id];if(!s||s.level==='ok')return '';return '<span class="pill '+s.level+'">'+esc(lineLabel(s.name||lineNameOf(id)))+': '+esc(s.desc)+'</span>';}).filter(Boolean).join(' ');
+  let body='';
+  if(open){
+    let list;
+    if(c.synthetic) list='<li><span>'+esc(lineLabel(c.lineName))+' to '+esc(c.arrName)+'<small>'+esc(c.depName)+' → '+esc(c.arrName)+'</small></span>'+(c.train&&c.train.arrAt?'<span class="dur">'+Math.round((c.train.arrAt-c.train.at)/60000)+' min</span>':'')+'</li>';
+    else list=c.legs.map(l=>{
+      const w=isWalk(l);
+      const stops=l.path&&l.path.stopPoints?Math.max(0,l.path.stopPoints.length-1):0;
+      return '<li><span>'+esc((l.instruction&&l.instruction.summary)||'')+(w?'':'<small>'+esc(cleanName(l.departurePoint&&l.departurePoint.commonName))+' → '+esc(cleanName(l.arrivalPoint&&l.arrivalPoint.commonName))+(stops?' · '+stops+' stop'+(stops>1?'s':''):'')+'</small>')+'</span><span class="dur">'+(l.duration||0)+' min</span></li>';
+    }).join('');
+    const reasons=(c.lineIds||[]).map(id=>{const s=S.data.status[id];return s&&s.level!=='ok'?s.reasons.map(x=>'<p class="note">'+esc(x)+'</p>').join(''):'';}).join('');
+    body='<div class="jbody"><ul class="legs">'+list+'</ul>'+reasons+'</div>';
+  }
+  return '<div class="card'+(c.direct?' direct':'')+'"><button class="jhead" data-act="toggle" data-key="'+esc(key)+'" aria-expanded="'+open+'">'+
+    (c.direct?'<span class="kicker">Direct</span>':'')+
+    '<div class="cardtop"><div class="arrive">'+arrive+'</div>'+cmp+'</div>'+
+    '<div class="chips">'+chips+'</div>'+
+    '<div class="firsttrain">'+first+'</div>'+
+    (pills?'<div class="chips">'+pills+'</div>':'')+'</button>'+body+'</div>';
+}
+function cardsHtml(D,now){
+  const cards=D.cards||[];
+  let h='<h2 class="section-title" id="alts">Ways to get there</h2><p class="section-sub">Ranked by arrival time. Times use the live first train; changes and walks after that are timetable estimates.</p>';
+  if(!cards.length){
+    h+=D.planErr?'<div class="err"><p>Couldn’t load other ways. '+esc(errText(D.planErr))+'</p></div>':'<p class="note">No journeys found.</p>';
+    return h;
+  }
+  const ests=cards.filter(c=>c.est!=null).map(c=>c.est);
+  const best=ests.length?Math.min(...ests):null;
+  return h+'<div class="stack">'+cards.map(c=>cardHtml(c,best,now)).join('')+'</div>';
+}
 function routeView(){
-  const r=S.route; const from=S.reversed?r.to:r.from, to=S.reversed?r.from:r.to;
+  const r=S.route, now=Date.now();
+  const from=S.reversed?r.to:r.from, to=S.reversed?r.from:r.to;
   const upd=S.loading?'Updating…':(S.updated?'<b>Live</b> · updated '+esc(S.updated.toLocaleTimeString('en-GB',{timeZone:'Europe/London'})):'');
-  return '<div class="top"><button class="btn" data-act="back">‹ Routes</button></div>'+
+  const D=S.data;
+  return '<div class="top"><button class="btn" data-act="back">‹ Routes</button><button class="btn ghost" data-act="edit">Edit</button></div>'+
     '<p class="eyebrow">'+esc(S.reversed?'Reversed':r.name)+'</p>'+
     '<h1 class="small">'+esc(cleanName(from.name))+' → '+esc(cleanName(to.name))+'</h1>'+
     '<div class="row-actions"><button class="btn" data-act="reverse">Reverse</button><button class="btn" data-act="refresh">Refresh</button></div>'+
     '<div class="meta" aria-live="polite" style="margin-bottom:12px">'+upd+'</div>'+
     (S.err?'<div class="err" role="alert"><p>'+esc(S.err)+'</p><button class="btn" data-act="refresh">Try again</button></div>':'')+
-    '<div class="stack">'+S.journeys.map(journeyCard).join('')+'</div>'+
-    (!S.journeys.length&&!S.err&&!S.loading?'<p class="note">No journeys found.</p>':'')+
+    (D?bannerHtml(D,now)+boardHtml(D,now)+cardsHtml(D,now):(S.loading?'<div class="board"><div class="msg">Loading live trains…</div></div>':''))+
     (S.confirmDel?'<div class="confirm"><span>Remove this route?</span><button class="btn danger" data-act="delyes">Remove</button><button class="btn" data-act="delno">Keep</button></div>':
       '<div class="confirm"><button class="btn ghost" data-act="del">Remove this route</button></div>')+
-    '<p class="foot">Journey times are timetable estimates. The board shows live predictions from TfL.</p>';
+    '<p class="foot">Live times from Transport for London. The board updates every 30 seconds.</p>';
 }
 function render(){
   if(S.view==='home') $app.innerHTML=homeView();
-  else if(S.view==='add') $app.innerHTML=addView();
+  else if(S.view==='form') $app.innerHTML=formView();
   else $app.innerHTML=routeView();
 }
 
 /* ---------- actions ---------- */
-async function refreshAll(){
-  const token=++S.token; S.loading=true; S.err=null; render();
-  const r=S.route; const from=S.reversed?r.to:r.from, to=S.reversed?r.from:r.to;
+async function refreshRoute(force){
+  const token=++S.token; S.loading=true;
+  if(force) memo.clear();
+  render();
   try{
-    const js=await fetchJourneys(from.id,to.id);
+    const data=await computeRoute(S.route,S.reversed,{cards:true,force});
     if(token!==S.token) return;
-    S.journeys=js; S.live={}; S.open=0; S.other={}; render();
-    await refreshLive(token);
+    S.data=data; S.err=null; S.updated=new Date();
   }catch(e){
     if(token!==S.token) return;
-    S.err=e.message||'Something went wrong.'; S.journeys=[];
+    S.err=errText(e);
   }
-  if(token!==S.token) return;
   S.loading=false; render();
 }
-async function refreshLive(token){
-  await Promise.all(S.journeys.map(async(j,i)=>{
-    try{const v=await loadLive(j); if(token===S.token) S.live[i]=v;}
-    catch(e){if(token===S.token) S.live[i]={error:true};}
-  }).concat([loadStatus()]));
-  if(token===S.token) S.updated=new Date();
+let glanceBusy=false;
+async function refreshGlances(){
+  if(glanceBusy) return; glanceBusy=true;
+  try{
+    await Promise.all(store.routes.map(async r=>{
+      try{
+        const res=await computeRoute(r,false,{cards:false});
+        const t=res.board?firstYes(res.board.rows,Date.now()):null;
+        S.glance[r.id]={none:!res.board||(res.board.failed&&!res.board.rows.length),at:t?t.at:null,change:res.board&&res.board.kind==='firstleg'?res.board.arrName:null};
+      }catch(e){S.glance[r.id]={err:true};}
+    }));
+  }finally{glanceBusy=false;}
+  if(S.view==='home') render();
 }
-let liveTimer=null,tickTimer=null;
-function startTimers(){
-  stopTimers();
-  liveTimer=setInterval(async()=>{
-    if(S.view!=='route'||document.hidden||S.loading||!S.journeys.length) return;
-    const t=S.token; await refreshLive(t); if(t===S.token&&S.view==='route') render();
-  },30000);
-  tickTimer=setInterval(()=>{if(S.view==='route'&&!document.hidden&&!S.loading) render();},10000);
-}
-function stopTimers(){clearInterval(liveTimer);clearInterval(tickTimer);}
-document.addEventListener('visibilitychange',async()=>{
-  if(!document.hidden&&S.view==='route'&&S.journeys.length&&!S.loading){const t=S.token;await refreshLive(t);if(t===S.token&&S.view==='route')render();}
+setInterval(()=>{
+  if(document.hidden) return;
+  if(S.view==='route'&&!S.loading) refreshRoute(false);
+  else if(S.view==='home') refreshGlances();
+},30000);
+setInterval(()=>{if(!document.hidden&&(S.view==='route'||S.view==='home'))render();},10000);
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden) return;
+  if(S.view==='route'&&!S.loading) refreshRoute(false);
+  else if(S.view==='home') refreshGlances();
 });
 function openRoute(id){
   const r=store.routes.find(x=>x.id===id); if(!r) return;
-  S.view='route'; S.route=r; S.reversed=false; S.journeys=[]; S.live={}; S.status={}; S.updated=null; S.confirmDel=false; S.err=null;
-  window.scrollTo(0,0); startTimers(); refreshAll();
+  Object.assign(S,{view:'route',route:r,reversed:false,data:null,updated:null,err:null,open:{},showHidden:false,confirmDel:false});
+  window.scrollTo(0,0); refreshRoute(false);
 }
-function goHome(){S.view='home';S.token++;S.loading=false;stopTimers();render();}
-function resetAdd(){S.add={from:null,to:null,both:true,res:{from:[],to:[]},name1:'',name2:''};}
+function goHome(){S.view='home';S.token++;S.loading=false;render();refreshGlances();}
+function newForm(mode,r){
+  if(mode==='edit') return {mode,id:r.id,from:r.from,to:r.to,name1:r.name,name2:'',both:false,res:{from:[],to:[]}};
+  return {mode:'add',from:null,to:null,name1:'',name2:'',both:true,res:{from:[],to:[]}};
+}
+function keepNames(){const a=document.getElementById('name1'),b=document.getElementById('name2');if(a)S.form.name1=a.value;if(b)S.form.name2=b.value;}
 let searchTimer=null;
 function onSearch(which,q){
   clearTimeout(searchTimer);
@@ -439,42 +846,54 @@ function onSearch(which,q){
   box.innerHTML='<div class="hint">Searching…</div>';
   searchTimer=setTimeout(async()=>{
     try{
-      const r=await tfl('/StopPoint/Search',{query:q,modes:'tube,dlr,overground,elizabeth-line,national-rail',maxResults:10});
+      const r=await tfl('/StopPoint/Search',{query:q,modes:SEARCH_MODES,maxResults:10});
       const inp=document.getElementById('q-'+which); if(!inp||inp.value.trim()!==q) return;
       const seen=new Set(); const m=(r.matches||[]).filter(x=>x.id&&!seen.has(x.id)&&seen.add(x.id)).slice(0,8);
-      S.add.res[which]=m;
+      S.form.res[which]=m;
       box.innerHTML=m.length?m.map((x,i)=>'<button class="res" data-act="pick" data-which="'+which+'" data-i="'+i+'"><span>'+esc(cleanName(x.name))+'</span><span class="modes">'+esc((x.modes||[]).map(s=>s==='national-rail'?'rail':s==='elizabeth-line'?'Elizabeth line':s).join(', '))+'</span></button>').join(''):'<div class="hint">No stations found.</div>';
-    }catch(e){box.innerHTML='<div class="hint">Couldn’t reach TfL. Check your connection.</div>';}
+    }catch(e){box.innerHTML='<div class="hint">'+esc(errText(e))+'</div>';}
   },250);
 }
 function newId(){return 'r'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
-function saveAdd(){
-  const a=S.add; const err=document.getElementById('add-err');
-  if(!a.from||!a.to){err.textContent='Pick both stations from the lists.';return;}
-  if(a.from.id===a.to.id){err.textContent='Choose two different stations.';return;}
-  const f={id:a.from.id,name:a.from.name}, t={id:a.to.id,name:a.to.name};
-  const n1=(a.name1||'').trim()||cleanName(f.name)+' → '+cleanName(t.name);
-  store.routes.push({id:newId(),name:n1,from:f,to:t});
-  if(a.both){
-    const n2=(a.name2||'').trim()||cleanName(t.name)+' → '+cleanName(f.name);
-    store.routes.push({id:newId(),name:n2,from:t,to:f});
+function saveForm(){
+  keepNames();
+  const f=S.form, err=document.getElementById('form-err');
+  if(!f.from||!f.to){err.textContent='Pick both stations from the lists.';return;}
+  if(f.from.id===f.to.id){err.textContent='Choose two different stations.';return;}
+  const fr=f.from,to=f.to;
+  const n1=(f.name1||'').trim()||cleanName(fr.name)+' → '+cleanName(to.name);
+  if(f.mode==='edit'){
+    const r=store.routes.find(x=>x.id===f.id);
+    if(r){r.name=n1;r.from=fr;r.to=to;}
+    saveStore(); S.form=null;
+    if(r){openRoute(r.id);return;}
+    goHome(); return;
   }
-  saveStore(); resetAdd(); goHome();
+  store.routes.push({id:newId(),name:n1,from:fr,to:to});
+  if(f.both){
+    const n2=(f.name2||'').trim()||cleanName(to.name)+' → '+cleanName(fr.name);
+    store.routes.push({id:newId(),name:n2,from:JSON.parse(JSON.stringify(to)),to:JSON.parse(JSON.stringify(fr))});
+  }
+  saveStore(); S.form=null; goHome();
 }
-
 $app.addEventListener('click',e=>{
   const el=e.target.closest('[data-act]'); if(!el) return;
   const act=el.dataset.act;
   if(act==='open') openRoute(el.dataset.id);
-  else if(act==='add'){resetAdd();S.view='add';render();const q=document.getElementById('q-from');if(q)q.focus();}
-  else if(act==='cancel'||act==='back') goHome();
-  else if(act==='pick'){const w=el.dataset.which;const x=S.add.res[w][+el.dataset.i];S.add[w]=x;S.add.name1=(document.getElementById('name1')||{}).value||S.add.name1;render();const nq=document.getElementById('q-to');if(w==='from'&&nq)nq.focus();}
-  else if(act==='unpick'){const w=el.dataset.which;S.add.name1=(document.getElementById('name1')||{}).value||'';S.add[w]=null;render();const q=document.getElementById('q-'+w);if(q)q.focus();}
-  else if(act==='save') saveAdd();
-  else if(act==='reverse'){S.reversed=!S.reversed;S.journeys=[];S.live={};refreshAll();}
-  else if(act==='refresh') refreshAll();
-  else if(act==='toggle'){const i=+el.dataset.i;S.open=S.open===i?-1:i;render();}
-  else if(act==='other'){const i=+el.dataset.i;S.other[i]=!S.other[i];render();}
+  else if(act==='add'){S.form=newForm('add');S.view='form';render();const q=document.getElementById('q-from');if(q)q.focus();}
+  else if(act==='edit'){S.token++;S.loading=false;S.form=newForm('edit',S.route);S.view='form';render();}
+  else if(act==='cancel'){const f=S.form;S.form=null;if(f&&f.mode==='edit')openRoute(f.id);else goHome();}
+  else if(act==='back') goHome();
+  else if(act==='pick'){keepNames();const w=el.dataset.which;const x=S.form.res[w][+el.dataset.i];
+    S.form[w]={id:x.id,name:x.name,ics:x.icsId||'',lat:x.lat,lon:x.lon};render();
+    const nq=document.getElementById('q-to');if(w==='from'&&nq)nq.focus();}
+  else if(act==='unpick'){keepNames();const w=el.dataset.which;S.form[w]=null;render();const q=document.getElementById('q-'+w);if(q)q.focus();}
+  else if(act==='save') saveForm();
+  else if(act==='reverse'){S.reversed=!S.reversed;S.data=null;S.open={};S.showHidden=false;refreshRoute(false);}
+  else if(act==='refresh') refreshRoute(true);
+  else if(act==='toggle'){const k=el.dataset.key;S.open[k]=!S.open[k];render();}
+  else if(act==='hidden'){S.showHidden=!S.showHidden;render();}
+  else if(act==='toalts'){const a=document.getElementById('alts');if(a)a.scrollIntoView({behavior:'smooth',block:'start'});}
   else if(act==='del'){S.confirmDel=true;render();}
   else if(act==='delno'){S.confirmDel=false;render();}
   else if(act==='delyes'){store.routes=store.routes.filter(r=>r.id!==S.route.id);saveStore();goHome();}
@@ -482,13 +901,14 @@ $app.addEventListener('click',e=>{
 $app.addEventListener('input',e=>{
   const t=e.target;
   if(t.id==='q-from'||t.id==='q-to') onSearch(t.dataset.which,t.value);
-  else if(t.id==='name1') S.add.name1=t.value;
-  else if(t.id==='name2') S.add.name2=t.value;
+  else if(t.id==='name1') S.form.name1=t.value;
+  else if(t.id==='name2') S.form.name2=t.value;
 });
 $app.addEventListener('change',e=>{
-  if(e.target.id==='both'){S.add.both=e.target.checked;S.add.name1=(document.getElementById('name1')||{}).value||'';render();}
+  if(e.target.id==='both'){keepNames();S.form.both=e.target.checked;render();}
 });
 render();
+refreshGlances();
 </script>
 </body>
 </html>
